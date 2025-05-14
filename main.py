@@ -30,6 +30,23 @@ def process_network_data(packet: NetworkPacketData):
             print(f"Alert generated: {alert}")
             return
 
+def process_system_log(log: SystemLogData):
+    combined_log_string = f"{log.timestamp} {log.hostname} {log.log_level} {log.source} {log.message}"
+    print(f"Log string being checked: {combined_log_string}")
+    for rule in rules_db:
+        if rule.is_active and re.search(rule.pattern, combined_log_string, re.IGNORECASE):
+            alert = Alert(
+                id=len(alerts_db) + 1,
+                timestamp=log.timestamp,
+                severity=rule.severity,
+                source_ip=None,  # Logs might not always have IP addresses
+                destination_ip=None,
+                description=f"System log matched rule: {rule.name} (Pattern: {rule.pattern}) - Log: {log.message}"
+            )
+            alerts_db.append(alert)
+            print(f"Alert generated from log: {alert}")
+            return # For now, trigger one alert per log match
+
 
 @app.post("/network_data")
 async def receive_network_data(packet_data: NetworkPacketData):
@@ -42,7 +59,7 @@ async def receive_network_data(packet_data: NetworkPacketData):
 async def receive_system_log(log_data: SystemLogData):
     """Endpoint to receive system log data from agents."""
     print(f"Received system log: {log_data}")
-    # We'll implement log processing later
+    process_system_log(log_data)
     return {"message": "System log received successfully"}
 
 @app.get("/alerts", response_model=List[Alert])

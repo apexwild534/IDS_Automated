@@ -1,0 +1,7 @@
+{
+    "timestamp": "2025-05-14T15:30:00",
+    "hostname": "server1",
+    "log_level": "WARNING",
+    "source": "systemd",
+    "message": "Starting suspicious_process.exe"
+}
