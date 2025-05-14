@@ -18,6 +18,10 @@ class Condition(BaseModel):
     operator: Literal["equals", "not_equals", "contains", "not_contains", "regex", "greater_than", "less_than"]
     value: str
 
+class SequenceCondition(BaseModel):
+    data_source: Literal["network", "logs"]
+    condition: Condition
+
 class Rule(BaseModel):
     id: int | None = None
     name: str
@@ -28,6 +32,8 @@ class Rule(BaseModel):
     conditions: List[Condition] = []
     threshold_count: Optional[int] = None
     threshold_window: Optional[int] = None
+    sequence: Optional[List[SequenceCondition]] = None
+    sequence_window: Optional[int] = None
 
     class Config:
         from_attributes = True

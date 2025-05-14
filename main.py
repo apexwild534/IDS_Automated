@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends
 from typing import List, Dict
 from datetime import datetime, timedelta
-from models import Alert, Rule, SystemStatus, NetworkPacketData, SystemLogData, Condition
+from models import Alert, Rule, SystemStatus, NetworkPacketData, SystemLogData, Condition, SequenceCondition
 import re
 from database import engine, Base, SessionLocal, AlertDB, RuleDB
 from sqlalchemy.orm import Session
@@ -12,8 +12,9 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
-# Dictionary to track event timestamps for thresholding
 rule_event_timestamps: Dict[int, List[datetime]] = {}
+# Dictionary to track ongoing event sequences: {(rule_id, source_identifier): (next_expected_index, start_time)}
+active_sequences: Dict[tuple[int, str], tuple[int, datetime]] = {}
 
 def get_db():
     db = SessionLocal()
@@ -56,6 +57,7 @@ def process_network_data(packet: NetworkPacketData, db: Session = Depends(get_db
     print(f"Processing network data: {packet}")
     for rule_db in db.query(RuleDB).filter(RuleDB.is_active == True, RuleDB.data_source.in_(["network", "both"])).all():
         conditions_data = rule_db.conditions if rule_db.conditions is not None else []
+        sequence_data = rule_db.sequence if rule_db.sequence is not None else []
         rule = Rule(
             id=rule_db.id,
             name=rule_db.name,
@@ -65,26 +67,64 @@ def process_network_data(packet: NetworkPacketData, db: Session = Depends(get_db
             data_source=rule_db.data_source,
             conditions=[Condition(**c) for c in conditions_data],
             threshold_count=rule_db.threshold_count,
-            threshold_window=rule_db.threshold_window
+            threshold_window=rule_db.threshold_window,
+            sequence=[SequenceCondition(**s) for s in sequence_data],
+            sequence_window=rule_db.sequence_window
         )
-        if rule.conditions:
+
+        source_identifier = packet.source_ip
+
+        if rule.sequence and rule.sequence_window:
+            rule_id = rule.id
+            sequence_key = (rule_id, source_identifier)
+
+            if sequence_key in active_sequences:
+                next_index, start_time = active_sequences[sequence_key]
+                if next_index < len(rule.sequence):
+                    expected_sequence_item = rule.sequence[next_index]
+                    if expected_sequence_item.data_source == "network" and evaluate_condition(packet, expected_sequence_item.condition):
+                        if next_index == len(rule.sequence) - 1:
+                            # Sequence complete!
+                            alert = AlertDB(
+                                timestamp=datetime.utcnow(),
+                                severity=rule.severity,
+                                source_ip=packet.source_ip,
+                                destination_ip=packet.destination_ip,
+                                description=f"Sequential rule '{rule.name}' triggered (Sequence: {[s.model_dump() for s in rule.sequence]})"
+                            )
+                            db.add(alert)
+                            db.commit()
+                            db.refresh(alert)
+                            print(f"Sequential alert generated from network: {Alert.from_orm(alert)}")
+                            del active_sequences[sequence_key]
+                            return
+                        else:
+                            # Move to the next step in the sequence
+                            active_sequences[sequence_key] = (next_index + 1, start_time)
+                            print(f"Network sequence for rule {rule_id}, source {source_identifier} advanced to step {next_index + 1}")
+            elif len(rule.sequence) > 0:
+                # Start of a new sequence
+                first_sequence_item = rule.sequence[0]
+                if first_sequence_item.data_source == "network" and evaluate_condition(packet, first_sequence_item.condition):
+                    active_sequences[sequence_key] = (1, datetime.utcnow())
+                    print(f"Network sequence for rule {rule_id}, source {source_identifier} started")
+
+        elif rule.conditions: # Existing single-event rule logic
             all_conditions_met = True
             for condition in rule.conditions:
                 if not evaluate_condition(packet, condition):
                     all_conditions_met = False
                     break
             if all_conditions_met:
+                # ... (rest of the single-event alert logic - thresholding is already handled here)
                 if rule.threshold_count is not None and rule.threshold_window is not None:
                     rule_id = rule.id
                     now = datetime.utcnow()
-                    print(f"Rule ID: {rule_id}, Current Time: {now}")  # Debug print
                     if rule_id not in rule_event_timestamps:
                         rule_event_timestamps[rule_id] = []
                     rule_event_timestamps[rule_id].append(now)
-                    print(f"Timestamps for rule {rule_id}: {rule_event_timestamps[rule_id]}")  # Debug print
                     window_start = now - timedelta(seconds=rule.threshold_window)
                     rule_event_timestamps[rule_id] = [ts for ts in rule_event_timestamps[rule_id] if ts >= window_start]
-                    print(f"Timestamps within window for rule {rule_id}: {rule_event_timestamps[rule_id]}")  # Debug print
                     if len(rule_event_timestamps[rule_id]) >= rule.threshold_count:
                         alert = AlertDB(
                             timestamp=now,
@@ -93,13 +133,10 @@ def process_network_data(packet: NetworkPacketData, db: Session = Depends(get_db
                             destination_ip=packet.destination_ip,
                             description=f"Threshold exceeded for rule '{rule.name}'. Triggered {len(rule_event_timestamps[rule_id])} times within {rule.threshold_window} seconds (Conditions: {[c.model_dump() for c in rule.conditions]})"
                         )
-                        print(f"Timestamps within window for rule {rule_id}: {rule_event_timestamps[rule_id]}")  # Debug print
                         db.add(alert)
                         db.commit()
                         db.refresh(alert)
                         print(f"Threshold alert generated from network: {Alert.from_orm(alert)}")
-                        # Optionally, reset the timestamps after triggering the alert
-                        # del rule_event_timestamps[rule_id]
                         return
                 else:
                     alert = AlertDB(
@@ -114,13 +151,14 @@ def process_network_data(packet: NetworkPacketData, db: Session = Depends(get_db
                     db.refresh(alert)
                     print(f"Alert generated from network: {Alert.from_orm(alert)}")
                     return
-        elif not rule.conditions:
-            print(f"Encountered rule '{rule.name}' with no conditions. No alert triggered.")
+        elif not rule.conditions and not rule.sequence:
+            print(f"Encountered rule '{rule.name}' with no conditions or sequence. No alert triggered.")
 
 def process_system_log(log: SystemLogData, db: Session = Depends(get_db)):
     print(f"Processing system log: {log}")
     for rule_db in db.query(RuleDB).filter(RuleDB.is_active == True, RuleDB.data_source.in_(["logs", "both"])).all():
         conditions_data = rule_db.conditions if rule_db.conditions is not None else []
+        sequence_data = rule_db.sequence if rule_db.sequence is not None else []
         rule = Rule(
             id=rule_db.id,
             name=rule_db.name,
@@ -130,15 +168,56 @@ def process_system_log(log: SystemLogData, db: Session = Depends(get_db)):
             data_source=rule_db.data_source,
             conditions=[Condition(**c) for c in conditions_data],
             threshold_count=rule_db.threshold_count,
-            threshold_window=rule_db.threshold_window
+            threshold_window=rule_db.threshold_window,
+            sequence=[SequenceCondition(**s) for s in sequence_data],
+            sequence_window=rule_db.sequence_window
         )
-        if rule.conditions:
+
+        source_identifier = log.hostname # Using hostname as identifier for logs
+
+        if rule.sequence and rule.sequence_window:
+            rule_id = rule.id
+            sequence_key = (rule_id, source_identifier)
+
+            if sequence_key in active_sequences:
+                next_index, start_time = active_sequences[sequence_key]
+                if next_index < len(rule.sequence):
+                    expected_sequence_item = rule.sequence[next_index]
+                    if expected_sequence_item.data_source == "logs" and evaluate_condition(log, expected_sequence_item.condition):
+                        if next_index == len(rule.sequence) - 1:
+                            # Sequence complete!
+                            alert = AlertDB(
+                                timestamp=datetime.utcnow(),
+                                severity=rule.severity,
+                                source_ip=None,
+                                destination_ip=None,
+                                description=f"Sequential rule '{rule.name}' triggered (Sequence: {[s.model_dump() for s in rule.sequence]}) - Log Host: {log.hostname}"
+                            )
+                            db.add(alert)
+                            db.commit()
+                            db.refresh(alert)
+                            print(f"Sequential alert generated from log: {Alert.from_orm(alert)}")
+                            del active_sequences[sequence_key]
+                            return
+                        else:
+                            # Move to the next step in the sequence
+                            active_sequences[sequence_key] = (next_index + 1, start_time)
+                            print(f"Log sequence for rule {rule_id}, host {source_identifier} advanced to step {next_index + 1}")
+            elif len(rule.sequence) > 0:
+                # Start of a new sequence
+                first_sequence_item = rule.sequence[0]
+                if first_sequence_item.data_source == "logs" and evaluate_condition(log, first_sequence_item.condition):
+                    active_sequences[sequence_key] = (1, datetime.utcnow())
+                    print(f"Log sequence for rule {rule_id}, host {source_identifier} started")
+
+        elif rule.conditions: # Existing single-event rule logic for logs
             all_conditions_met = True
             for condition in rule.conditions:
                 if not evaluate_condition(log, condition):
                     all_conditions_met = False
                     break
             if all_conditions_met:
+                # ... (rest of the single-event log alert logic - thresholding is already handled)
                 if rule.threshold_count is not None and rule.threshold_window is not None:
                     rule_id = rule.id
                     now = datetime.utcnow()
@@ -159,8 +238,6 @@ def process_system_log(log: SystemLogData, db: Session = Depends(get_db)):
                         db.commit()
                         db.refresh(alert)
                         print(f"Threshold alert generated from log: {Alert.from_orm(alert)}")
-                        # Optionally, reset the timestamps after triggering the alert
-                        # del rule_event_timestamps[rule_id]
                         return
                 else:
                     alert = AlertDB(
@@ -175,8 +252,8 @@ def process_system_log(log: SystemLogData, db: Session = Depends(get_db)):
                     db.refresh(alert)
                     print(f"Alert generated from log: {Alert.from_orm(alert)}")
                     return
-        elif not rule.conditions:
-            print(f"Encountered rule '{rule.name}' with no conditions. No alert triggered.")
+        elif not rule.conditions and not rule.sequence:
+            print(f"Encountered rule '{rule.name}' with no conditions or sequence. No alert triggered.")
 
 @app.post("/network_data")
 async def receive_network_data(packet_data: NetworkPacketData, db: Session = Depends(get_db)):
@@ -201,6 +278,7 @@ async def get_rules(db: Session = Depends(get_db)):
     rules = []
     for rule_db in rules_db:
         conditions_data = rule_db.conditions if rule_db.conditions is not None else []
+        sequence_data = rule_db.sequence if rule_db.sequence is not None else []
         rule = Rule(
             id=rule_db.id,
             name=rule_db.name,
@@ -210,7 +288,9 @@ async def get_rules(db: Session = Depends(get_db)):
             data_source=rule_db.data_source,
             conditions=[Condition(**c) for c in conditions_data],
             threshold_count=rule_db.threshold_count,
-            threshold_window=rule_db.threshold_window
+            threshold_window=rule_db.threshold_window,
+            sequence=[SequenceCondition(**s) for s in sequence_data],
+            sequence_window=rule_db.sequence_window
         )
         rules.append(rule)
     return rules
@@ -233,6 +313,7 @@ async def get_rule(rule_id: int, db: Session = Depends(get_db)):
     if db_rule is None:
         raise HTTPException(status_code=404, detail=f"Rule with ID {rule_id} not found")
     conditions_data = db_rule.conditions if db_rule.conditions is not None else []
+    sequence_data = db_rule.sequence if db_rule.sequence is not None else []
     return Rule(
         id=db_rule.id,
         name=db_rule.name,
@@ -242,7 +323,9 @@ async def get_rule(rule_id: int, db: Session = Depends(get_db)):
         data_source=db_rule.data_source,
         conditions=[Condition(**c) for c in conditions_data],
         threshold_count=db_rule.threshold_count,
-        threshold_window=db_rule.threshold_window
+        threshold_window=db_rule.threshold_window,
+        sequence=[SequenceCondition(**s) for s in sequence_data],
+        sequence_window=db_rule.sequence_window
     )
 
 @app.put("/rules/{rule_id}", response_model=Rule)

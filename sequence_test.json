@@ -1,0 +1,25 @@
+{
+    "name": "SYN followed by GET",
+    "severity": "Medium",
+    "is_active": true,
+    "data_source": "network",
+    "sequence": [
+        {
+            "data_source": "network",
+            "condition": {
+                "field": "protocol",
+                "operator": "equals",
+                "value": "TCP"
+            }
+        },
+        {
+            "data_source": "network",
+            "condition": {
+                "field": "data",
+                "operator": "contains",
+                "value": "GET"
+            }
+        }
+    ],
+    "sequence_window": 5
+}
