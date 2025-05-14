@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Depends
-from typing import List
-from datetime import datetime
+from typing import List, Dict
+from datetime import datetime, timedelta
 from models import Alert, Rule, SystemStatus, NetworkPacketData, SystemLogData, Condition
 import re
 from database import engine, Base, SessionLocal, AlertDB, RuleDB
@@ -11,6 +11,9 @@ from sqlalchemy.sql.expression import column
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
+
+# Dictionary to track event timestamps for thresholding
+rule_event_timestamps: Dict[int, List[datetime]] = {}
 
 def get_db():
     db = SessionLocal()
@@ -60,30 +63,58 @@ def process_network_data(packet: NetworkPacketData, db: Session = Depends(get_db
             severity=rule_db.severity,
             is_active=rule_db.is_active,
             data_source=rule_db.data_source,
-            conditions=[Condition(**c) for c in conditions_data]
+            conditions=[Condition(**c) for c in conditions_data],
+            threshold_count=rule_db.threshold_count,
+            threshold_window=rule_db.threshold_window
         )
-        if rule.conditions:  # Check if there are any conditions
+        if rule.conditions:
             all_conditions_met = True
             for condition in rule.conditions:
                 if not evaluate_condition(packet, condition):
                     all_conditions_met = False
                     break
             if all_conditions_met:
-                alert = AlertDB(
-                    timestamp=packet.timestamp,
-                    severity=rule.severity,
-                    source_ip=packet.source_ip,
-                    destination_ip=packet.destination_ip,
-                    description=f"Network traffic matched rule: {rule.name} (Conditions: {[c.model_dump() for c in rule.conditions]})"
-                )
-                db.add(alert)
-                db.commit()
-                db.refresh(alert)
-                print(f"Alert generated from network: {Alert.from_orm(alert)}")
-                return
-        elif not rule.conditions: # Handle rules with no conditions (e.g., the old "Test Rule") - maybe trigger on any matching data source?
-            # You might want to define specific behavior for rules with no conditions.
-            # For now, let's just log that we encountered one.
+                if rule.threshold_count is not None and rule.threshold_window is not None:
+                    rule_id = rule.id
+                    now = datetime.utcnow()
+                    print(f"Rule ID: {rule_id}, Current Time: {now}")  # Debug print
+                    if rule_id not in rule_event_timestamps:
+                        rule_event_timestamps[rule_id] = []
+                    rule_event_timestamps[rule_id].append(now)
+                    print(f"Timestamps for rule {rule_id}: {rule_event_timestamps[rule_id]}")  # Debug print
+                    window_start = now - timedelta(seconds=rule.threshold_window)
+                    rule_event_timestamps[rule_id] = [ts for ts in rule_event_timestamps[rule_id] if ts >= window_start]
+                    print(f"Timestamps within window for rule {rule_id}: {rule_event_timestamps[rule_id]}")  # Debug print
+                    if len(rule_event_timestamps[rule_id]) >= rule.threshold_count:
+                        alert = AlertDB(
+                            timestamp=now,
+                            severity=rule.severity,
+                            source_ip=packet.source_ip,
+                            destination_ip=packet.destination_ip,
+                            description=f"Threshold exceeded for rule '{rule.name}'. Triggered {len(rule_event_timestamps[rule_id])} times within {rule.threshold_window} seconds (Conditions: {[c.model_dump() for c in rule.conditions]})"
+                        )
+                        print(f"Timestamps within window for rule {rule_id}: {rule_event_timestamps[rule_id]}")  # Debug print
+                        db.add(alert)
+                        db.commit()
+                        db.refresh(alert)
+                        print(f"Threshold alert generated from network: {Alert.from_orm(alert)}")
+                        # Optionally, reset the timestamps after triggering the alert
+                        # del rule_event_timestamps[rule_id]
+                        return
+                else:
+                    alert = AlertDB(
+                        timestamp=packet.timestamp,
+                        severity=rule.severity,
+                        source_ip=packet.source_ip,
+                        destination_ip=packet.destination_ip,
+                        description=f"Network traffic matched rule: {rule.name} (Conditions: {[c.model_dump() for c in rule.conditions]})"
+                    )
+                    db.add(alert)
+                    db.commit()
+                    db.refresh(alert)
+                    print(f"Alert generated from network: {Alert.from_orm(alert)}")
+                    return
+        elif not rule.conditions:
             print(f"Encountered rule '{rule.name}' with no conditions. No alert triggered.")
 
 def process_system_log(log: SystemLogData, db: Session = Depends(get_db)):
@@ -97,7 +128,9 @@ def process_system_log(log: SystemLogData, db: Session = Depends(get_db)):
             severity=rule_db.severity,
             is_active=rule_db.is_active,
             data_source=rule_db.data_source,
-            conditions=[Condition(**c) for c in conditions_data]
+            conditions=[Condition(**c) for c in conditions_data],
+            threshold_count=rule_db.threshold_count,
+            threshold_window=rule_db.threshold_window
         )
         if rule.conditions:
             all_conditions_met = True
@@ -106,18 +139,42 @@ def process_system_log(log: SystemLogData, db: Session = Depends(get_db)):
                     all_conditions_met = False
                     break
             if all_conditions_met:
-                alert = AlertDB(
-                    timestamp=log.timestamp,
-                    severity=rule.severity,
-                    source_ip=None,
-                    destination_ip=None,
-                    description=f"System log matched rule: {rule.name} (Conditions: {[c.model_dump() for c in rule.conditions]}) - Log: {log.message}"
-                )
-                db.add(alert)
-                db.commit()
-                db.refresh(alert)
-                print(f"Alert generated from log: {Alert.from_orm(alert)}")
-                return
+                if rule.threshold_count is not None and rule.threshold_window is not None:
+                    rule_id = rule.id
+                    now = datetime.utcnow()
+                    if rule_id not in rule_event_timestamps:
+                        rule_event_timestamps[rule_id] = []
+                    rule_event_timestamps[rule_id].append(now)
+                    window_start = now - timedelta(seconds=rule.threshold_window)
+                    rule_event_timestamps[rule_id] = [ts for ts in rule_event_timestamps[rule_id] if ts >= window_start]
+                    if len(rule_event_timestamps[rule_id]) >= rule.threshold_count:
+                        alert = AlertDB(
+                            timestamp=now,
+                            severity=rule.severity,
+                            source_ip=None,
+                            destination_ip=None,
+                            description=f"Threshold exceeded for rule '{rule.name}'. Triggered {len(rule_event_timestamps[rule_id])} times within {rule.threshold_window} seconds (Conditions: {[c.model_dump() for c in rule.conditions]}) - Log: {log.message}"
+                        )
+                        db.add(alert)
+                        db.commit()
+                        db.refresh(alert)
+                        print(f"Threshold alert generated from log: {Alert.from_orm(alert)}")
+                        # Optionally, reset the timestamps after triggering the alert
+                        # del rule_event_timestamps[rule_id]
+                        return
+                else:
+                    alert = AlertDB(
+                        timestamp=log.timestamp,
+                        severity=rule.severity,
+                        source_ip=None,
+                        destination_ip=None,
+                        description=f"System log matched rule: {rule.name} (Conditions: {[c.model_dump() for c in rule.conditions]}) - Log: {log.message}"
+                    )
+                    db.add(alert)
+                    db.commit()
+                    db.refresh(alert)
+                    print(f"Alert generated from log: {Alert.from_orm(alert)}")
+                    return
         elif not rule.conditions:
             print(f"Encountered rule '{rule.name}' with no conditions. No alert triggered.")
 
@@ -151,10 +208,13 @@ async def get_rules(db: Session = Depends(get_db)):
             severity=rule_db.severity,
             is_active=rule_db.is_active,
             data_source=rule_db.data_source,
-            conditions=[Condition(**c) for c in conditions_data]
+            conditions=[Condition(**c) for c in conditions_data],
+            threshold_count=rule_db.threshold_count,
+            threshold_window=rule_db.threshold_window
         )
         rules.append(rule)
     return rules
+
 @app.post("/rules", response_model=Rule, status_code=201)
 async def create_rule(rule: Rule, db: Session = Depends(get_db)):
     db_rule = RuleDB(**rule.model_dump(exclude={"id"}))
@@ -166,6 +226,24 @@ async def create_rule(rule: Rule, db: Session = Depends(get_db)):
     except IntegrityError as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=f"Database error: {e}")
+
+@app.get("/rules/{rule_id}", response_model=Rule)
+async def get_rule(rule_id: int, db: Session = Depends(get_db)):
+    db_rule = db.query(RuleDB).filter(RuleDB.id == rule_id).first()
+    if db_rule is None:
+        raise HTTPException(status_code=404, detail=f"Rule with ID {rule_id} not found")
+    conditions_data = db_rule.conditions if db_rule.conditions is not None else []
+    return Rule(
+        id=db_rule.id,
+        name=db_rule.name,
+        description=db_rule.description,
+        severity=db_rule.severity,
+        is_active=db_rule.is_active,
+        data_source=db_rule.data_source,
+        conditions=[Condition(**c) for c in conditions_data],
+        threshold_count=db_rule.threshold_count,
+        threshold_window=db_rule.threshold_window
+    )
 
 @app.put("/rules/{rule_id}", response_model=Rule)
 async def update_rule(rule_id: int, updated_rule: Rule, db: Session = Depends(get_db)):
@@ -182,6 +260,7 @@ async def update_rule(rule_id: int, updated_rule: Rule, db: Session = Depends(ge
     except IntegrityError as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=f"Database error: {e}")
+
 @app.delete("/rules/{rule_id}", status_code=204)
 async def delete_rule(rule_id: int, db: Session = Depends(get_db)):
     db_rule = db.query(RuleDB).filter(RuleDB.id == rule_id).first()

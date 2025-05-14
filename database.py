@@ -10,8 +10,8 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
-# Base.metadata.drop_all(bind=engine) # Remove this after initial schema update
-# Base.metadata.create_all(bind=engine) # Remove this after initial schema update
+Base.metadata.drop_all(bind=engine) # Remove this after initial schema update
+Base.metadata.create_all(bind=engine) # Remove this after initial schema update
 
 class AlertDB(Base):
     __tablename__ = "alerts"
