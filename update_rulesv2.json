@@ -1,0 +1,8 @@
+{
+    "name": "High Source IP",
+    "pattern": "^192\\.168\\.",
+    "severity": "Medium",
+    "is_active": true,
+    "data_source": "network",
+    "data_field": "source_ip"
+}

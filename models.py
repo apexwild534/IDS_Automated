@@ -17,7 +17,8 @@ class Rule(BaseModel):
     pattern: str  # The pattern or signature to look for
     severity: str
     is_active: bool = True
-    data_source: Literal["network", "logs", "both"] = "both" # Added data_source field
+    data_source: Literal["network", "logs", "both"] = "both"
+    data_field: Optional[str] = None  # Added data_field to specify the field to match against
 
 class SystemStatus(BaseModel):
     overall_status: str
@@ -35,7 +36,7 @@ class NetworkPacketData(BaseModel):
     length: int
     flags: Optional[str] = None  # E.g., SYN, ACK, FIN
     checksum: Optional[str] = None
-    data: Optional[str] = None # Added data field to match your curl request
+    data: Optional[str] = None
 
 class SystemLogData(BaseModel):
     timestamp: datetime

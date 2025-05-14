@@ -14,39 +14,66 @@ rules_db = [
 ]
 
 def process_network_data(packet: NetworkPacketData):
-    combined_string = f"{packet.source_ip} {packet.destination_ip} {packet.protocol} {packet.source_port} {packet.destination_port} {packet.flags} {packet.length} {packet.checksum} {packet.timestamp} {getattr(packet, 'data', '')}"
-    print(f"Network string being checked: {combined_string}")
+    print(f"Processing network data: {packet}")
     for rule in rules_db:
-        if rule.is_active and (rule.data_source == "network" or rule.data_source == "both") and re.search(rule.pattern, combined_string, re.IGNORECASE):
-            alert = Alert(
-                id=len(alerts_db) + 1,
-                timestamp=packet.timestamp,
-                severity=rule.severity,
-                source_ip=packet.source_ip,
-                destination_ip=packet.destination_ip,
-                description=f"Network traffic matched rule: {rule.name} (Pattern: {rule.pattern})"
-            )
-            alerts_db.append(alert)
-            print(f"Alert generated from network: {alert}")
-            return
+        if rule.is_active and (rule.data_source == "network" or rule.data_source == "both"):
+            if rule.data_field:
+                field_value = getattr(packet, rule.data_field, None)
+                if field_value and re.search(rule.pattern, str(field_value), re.IGNORECASE):
+                    alert = Alert(
+                        id=len(alerts_db) + 1,
+                        timestamp=packet.timestamp,
+                        severity=rule.severity,
+                        source_ip=packet.source_ip,
+                        destination_ip=packet.destination_ip,
+                        description=f"Network traffic matched rule: {rule.name} (Pattern: '{rule.pattern}' in field '{rule.data_field}')"
+                    )
+                    alerts_db.append(alert)
+                    print(f"Alert generated from network: {alert}")
+                    return
+            elif re.search(rule.pattern, str(packet.model_dump_json()), re.IGNORECASE): # Fallback to checking all fields if data_field is not specified
+                alert = Alert(
+                    id=len(alerts_db) + 1,
+                    timestamp=packet.timestamp,
+                    severity=rule.severity,
+                    source_ip=packet.source_ip,
+                    destination_ip=packet.destination_ip,
+                    description=f"Network traffic matched rule (all fields): {rule.name} (Pattern: '{rule.pattern}')"
+                )
+                alerts_db.append(alert)
+                print(f"Alert generated from network (all fields): {alert}")
+                return
 
 def process_system_log(log: SystemLogData):
-    combined_log_string = f"{log.timestamp} {log.hostname} {log.log_level} {log.source} {log.message}"
-    print(f"Log string being checked: {combined_log_string}")
+    print(f"Processing system log: {log}")
     for rule in rules_db:
-        if rule.is_active and (rule.data_source == "logs" or rule.data_source == "both") and re.search(rule.pattern, combined_log_string, re.IGNORECASE):
-            alert = Alert(
-                id=len(alerts_db) + 1,
-                timestamp=log.timestamp,
-                severity=rule.severity,
-                source_ip=None,  # Logs might not always have IP addresses
-                destination_ip=None,
-                description=f"System log matched rule: {rule.name} (Pattern: {rule.pattern}) - Log: {log.message}"
-            )
-            alerts_db.append(alert)
-            print(f"Alert generated from log: {alert}")
-            return
-
+        if rule.is_active and (rule.data_source == "logs" or rule.data_source == "both"):
+            if rule.data_field:
+                field_value = getattr(log, rule.data_field, None)
+                if field_value and re.search(rule.pattern, str(field_value), re.IGNORECASE):
+                    alert = Alert(
+                        id=len(alerts_db) + 1,
+                        timestamp=log.timestamp,
+                        severity=rule.severity,
+                        source_ip=None,
+                        destination_ip=None,
+                        description=f"System log matched rule: {rule.name} (Pattern: '{rule.pattern}' in field '{rule.data_field}') - Log: {log.message}"
+                    )
+                    alerts_db.append(alert)
+                    print(f"Alert generated from log: {alert}")
+                    return
+            elif re.search(rule.pattern, str(log.model_dump_json()), re.IGNORECASE): # Fallback to checking all fields if data_field is not specified
+                alert = Alert(
+                    id=len(alerts_db) + 1,
+                    timestamp=log.timestamp,
+                    severity=rule.severity,
+                    source_ip=None,
+                    destination_ip=None,
+                    description=f"System log matched rule (all fields): {rule.name} (Pattern: '{rule.pattern}') - Log: {log.message}"
+                )
+                alerts_db.append(alert)
+                print(f"Alert generated from log (all fields): {alert}")
+                return
 @app.post("/network_data")
 async def receive_network_data(packet_data: NetworkPacketData):
     """Endpoint to receive network packet data from agents."""
