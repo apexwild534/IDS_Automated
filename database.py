@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, JSON
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, JSON, Integer
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
@@ -10,8 +10,8 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
-# Base.metadata.drop_all(bind=engine)
-Base.metadata.create_all(bind=engine)
+# Base.metadata.drop_all(bind=engine) # Remove this after initial schema update
+# Base.metadata.create_all(bind=engine) # Remove this after initial schema update
 
 class AlertDB(Base):
     __tablename__ = "alerts"
@@ -33,3 +33,5 @@ class RuleDB(Base):
     is_active = Column(Boolean, default=True)
     data_source = Column(String, default="both")
     conditions = Column(JSON) # Store conditions as a JSON structure
+    threshold_count = Column(Integer, nullable=True)
+    threshold_window = Column(Integer, nullable=True)

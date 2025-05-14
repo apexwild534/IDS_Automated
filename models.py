@@ -11,7 +11,7 @@ class Alert(BaseModel):
     description: str
 
     class Config:
-        from_attributes = True  # Add this
+        from_attributes = True
 
 class Condition(BaseModel):
     field: str
@@ -26,6 +26,8 @@ class Rule(BaseModel):
     is_active: bool = True
     data_source: Literal["network", "logs", "both"] = "both"
     conditions: List[Condition] = []
+    threshold_count: Optional[int] = None
+    threshold_window: Optional[int] = None
 
     class Config:
         from_attributes = True
