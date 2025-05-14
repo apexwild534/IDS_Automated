@@ -1,0 +1,7 @@
+{
+    "timestamp": "2025-05-14T16:15:00",
+    "hostname": "workstation",
+    "log_level": "WARNING",
+    "source": "kernel",
+    "message": "Starting suspicious_process.exe with PID 1234"
+}

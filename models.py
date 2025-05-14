@@ -18,7 +18,8 @@ class Rule(BaseModel):
     severity: str
     is_active: bool = True
     data_source: Literal["network", "logs", "both"] = "both"
-    data_field: Optional[str] = None  # Added data_field to specify the field to match against
+    data_field: Optional[str] = None
+    match_type: Literal["exact", "substring", "regex"] = "regex" # Added match_type field
 
 class SystemStatus(BaseModel):
     overall_status: str
@@ -34,7 +35,7 @@ class NetworkPacketData(BaseModel):
     destination_port: int | None = None
     protocol: str
     length: int
-    flags: Optional[str] = None  # E.g., SYN, ACK, FIN
+    flags: Optional[str] = None
     checksum: Optional[str] = None
     data: Optional[str] = None
 

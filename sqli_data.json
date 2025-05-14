@@ -1,0 +1,11 @@
+{
+    "timestamp": "2025-05-14T16:10:00",
+    "source_ip": "192.168.1.101",
+    "destination_ip": "10.0.0.5",
+    "protocol": "TCP",
+    "length": 100,
+    "flags": "SYN",
+    "source_port": 12345,
+    "destination_port": 80,
+    "data": "SELECT username FROM users WHERE password = 'secret';"
+}
