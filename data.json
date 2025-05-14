@@ -1,0 +1,12 @@
+{
+    "timestamp": "2025-05-14T11:15:00",
+    "source_ip": "192.168.1.100",
+    "destination_ip": "10.0.0.5",
+    "protocol": "TCP",
+    "length": 80,
+    "flags": "SYN",
+    "source_port": 12345,
+    "destination_port": 80,
+    "checksum": "0xabcd",
+    "data": "SELECT * FROM users WHERE username = 'evil'"
+}

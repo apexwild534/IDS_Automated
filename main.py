@@ -1,21 +1,46 @@
 from fastapi import FastAPI, HTTPException
 from typing import List
 from datetime import datetime
-from models import Alert, Rule, SystemStatus
+from models import Alert, Rule, SystemStatus, NetworkPacketData, SystemLogData
 
 app = FastAPI()
 
-# Dummy data for alerts (replace with database later)
-alerts_db = [
-    Alert(id=1, timestamp=datetime.now(), severity="High", source_ip="192.168.1.100", destination_ip="10.0.0.5", description="Possible SQL Injection attempt"),
-    Alert(id=2, timestamp=datetime.now(), severity="Medium", source_ip="172.16.0.20", description="Unusual process started"),
-]
-
-# Dummy data for rules (replace with database later)
+# Dummy data (will be replaced later)
+alerts_db = []  # Initialize as empty
 rules_db = [
     Rule(id=1, name="SQL Injection Pattern", pattern="SELECT.*FROM.*WHERE", severity="High", is_active=True),
     Rule(id=2, name="Unusual Process", pattern="suspicious_process.exe", severity="Medium", is_active=True),
 ]
+
+def process_network_data(packet: NetworkPacketData):
+    for rule in rules_db:
+        if rule.is_active and rule.pattern in f"{packet.source_ip} {packet.destination_ip} {packet.protocol} {packet.source_port} {packet.destination_port} {packet.flags}":
+            alert = Alert(
+                id=len(alerts_db) + 1,
+                timestamp=packet.timestamp,
+                severity=rule.severity,
+                source_ip=packet.source_ip,
+                destination_ip=packet.destination_ip,
+                description=f"Network traffic matched rule: {rule.name} (Pattern: {rule.pattern})"
+            )
+            alerts_db.append(alert)
+            print(f"Alert generated: {alert}") # For debugging
+            # In a real system, you might want to avoid printing here and handle alerts differently
+            return # For now, trigger one alert per packet match
+
+@app.post("/network_data")
+async def receive_network_data(packet_data: NetworkPacketData):
+    """Endpoint to receive network packet data from agents."""
+    print(f"Received network data: {packet_data}")
+    process_network_data(packet_data)
+    return {"message": "Network data received and processed"}
+
+@app.post("/system_log")
+async def receive_system_log(log_data: SystemLogData):
+    """Endpoint to receive system log data from agents."""
+    print(f"Received system log: {log_data}")
+    # We'll implement log processing later
+    return {"message": "System log received successfully"}
 
 @app.get("/alerts", response_model=List[Alert])
 async def get_alerts():
@@ -73,6 +98,19 @@ async def get_status():
     )
     return status_data
 
+@app.post("/network_data")
+async def receive_network_data(packet_data: NetworkPacketData):
+    """Endpoint to receive network packet data from agents."""
+    print(f"Received network data: {packet_data}")
+    # Here you would process the network data
+    return {"message": "Network data received successfully"}
+
+@app.post("/system_log")
+async def receive_system_log(log_data: SystemLogData):
+    """Endpoint to receive system log data from agents."""
+    print(f"Received system log: {log_data}")
+    # Here you would process the system log data
+    return {"message": "System log received successfully"}
 
 @app.get("/")
 async def root():

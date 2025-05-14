@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from datetime import datetime
+from typing import Optional
 
 class Alert(BaseModel):
     id: int
@@ -22,3 +23,22 @@ class SystemStatus(BaseModel):
     data_ingestion: str
     detection_engine: str
     alert_storage: str
+
+class NetworkPacketData(BaseModel):
+    timestamp: datetime
+    source_ip: str
+    destination_ip: str
+    source_port: int | None = None
+    destination_port: int | None = None
+    protocol: str
+    length: int
+    flags: Optional[str] = None  # E.g., SYN, ACK, FIN
+    checksum: Optional[str] = None
+
+class SystemLogData(BaseModel):
+    timestamp: datetime
+    hostname: str
+    log_level: str
+    source: str
+    message: str
+    checksum: Optional[str] = None
