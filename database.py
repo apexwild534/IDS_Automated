@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, JSON, Integer
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, JSON, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
@@ -10,8 +10,6 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
-# Base.metadata.drop_all(bind=engine) # Remove after schema update
-# Base.metadata.create_all(bind=engine) # Remove after schema update
 
 class AlertDB(Base):
     __tablename__ = "alerts"
@@ -37,3 +35,13 @@ class RuleDB(Base):
     threshold_window = Column(Integer, nullable=True)
     sequence = Column(JSON, nullable=True) # Store sequence as JSON
     sequence_window = Column(Integer, nullable=True)
+    coincidence_conditions = Column(JSON, nullable=True) # For coincidence rules
+    coincidence_window = Column(Integer, nullable=True) # Window for coincidence
+    aggregation_field = Column(String, nullable=True) # Field to aggregate on
+    aggregation_value = Column(String, nullable=True) # Expected value after aggregation
+    aggregation_count = Column(Integer, nullable=True) # Expected count after aggregation
+    aggregation_window = Column(Integer, nullable=True) # Window for aggregation
+    anomaly_field = Column(String, nullable=True) # Field to check for anomaly
+    anomaly_threshold_multiplier = Column(Float, nullable=True) # Multiplier for std dev
+    anomaly_window = Column(Integer, nullable=True) # Window to calculate baseline
+    anomaly_baseline_count = Column(Integer, nullable=True) # Min events for baseline

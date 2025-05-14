@@ -1,0 +1,40 @@
+{
+  "name": "Login Failure Followed by Success",
+  "description": "Alert if a login failure is followed by a successful login from the same IP within 30 seconds.",
+  "severity": "low",
+  "is_active": true,
+  "data_source": "logs",
+  "coincidence_conditions": [
+    {
+      "data_source": "logs",
+      "conditions": [
+        {
+          "field": "log_level",
+          "operator": "equals",
+          "value": "ERROR"
+        },
+        {
+          "field": "message",
+          "operator": "contains",
+          "value": "Login failed for user"
+        }
+      ]
+    },
+    {
+      "data_source": "logs",
+      "conditions": [
+        {
+          "field": "log_level",
+          "operator": "equals",
+          "value": "INFO"
+        },
+        {
+          "field": "message",
+          "operator": "contains",
+          "value": "User logged in successfully"
+        }
+      ]
+    }
+  ],
+  "coincidence_window": 30
+}

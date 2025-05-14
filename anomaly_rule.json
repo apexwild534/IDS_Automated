@@ -1,0 +1,11 @@
+{
+  "name": "Unusually Large Network Packet",
+  "description": "Alert when a network packet's length is significantly larger than the baseline.",
+  "severity": "medium",
+  "is_active": true,
+  "data_source": "network",
+  "anomaly_field": "length",
+  "anomaly_threshold_multiplier": 3.0,
+  "anomaly_window": 300,
+  "anomaly_baseline_count": 100
+}

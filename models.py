@@ -22,6 +22,10 @@ class SequenceCondition(BaseModel):
     data_source: Literal["network", "logs"]
     condition: Condition
 
+class CoincidenceCondition(BaseModel):
+    data_source: Literal["network", "logs"]
+    conditions: List[Condition]
+
 class Rule(BaseModel):
     id: int | None = None
     name: str
@@ -34,6 +38,16 @@ class Rule(BaseModel):
     threshold_window: Optional[int] = None
     sequence: Optional[List[SequenceCondition]] = None
     sequence_window: Optional[int] = None
+    coincidence_conditions: Optional[List[CoincidenceCondition]] = None
+    coincidence_window: Optional[int] = None
+    aggregation_field: Optional[str] = None
+    aggregation_value: Optional[str] = None
+    aggregation_count: Optional[int] = None
+    aggregation_window: Optional[int] = None
+    anomaly_field: Optional[str] = None
+    anomaly_threshold_multiplier: Optional[float] = None
+    anomaly_window: Optional[int] = None
+    anomaly_baseline_count: Optional[int] = None
 
     class Config:
         from_attributes = True
