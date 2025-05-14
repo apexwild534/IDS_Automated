@@ -1,0 +1,23 @@
+{
+    "name": "Multi-Condition Rule",
+    "severity": "High",
+    "is_active": true,
+    "data_source": "network",
+    "conditions": [
+        {
+            "field": "source_ip",
+            "operator": "equals",
+            "value": "192.168.1.100"
+        },
+        {
+            "field": "destination_port",
+            "operator": "greater_than",
+            "value": "1023"
+        },
+        {
+            "field": "data",
+            "operator": "contains",
+            "value": "malicious"
+        }
+    ]
+}

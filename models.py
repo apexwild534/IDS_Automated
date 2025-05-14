@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional, Literal
+from typing import Optional, Literal, List, Dict
 
 class Alert(BaseModel):
     id: int | None = None
@@ -11,18 +11,21 @@ class Alert(BaseModel):
     description: str
 
     class Config:
-        from_attributes = True
+        from_attributes = True  # Add this
+
+class Condition(BaseModel):
+    field: str
+    operator: Literal["equals", "not_equals", "contains", "not_contains", "regex", "greater_than", "less_than"]
+    value: str
 
 class Rule(BaseModel):
     id: int | None = None
     name: str
     description: str | None = None
-    pattern: str  # The pattern or signature to look for
     severity: str
     is_active: bool = True
     data_source: Literal["network", "logs", "both"] = "both"
-    data_field: Optional[str] = None
-    match_type: Literal["exact", "substring", "regex"] = "regex"
+    conditions: List[Condition] = []
 
     class Config:
         from_attributes = True

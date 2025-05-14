@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
@@ -10,6 +10,8 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
+# Base.metadata.drop_all(bind=engine)
+Base.metadata.create_all(bind=engine)
 
 class AlertDB(Base):
     __tablename__ = "alerts"
@@ -27,9 +29,7 @@ class RuleDB(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String)
     description = Column(String, nullable=True)
-    pattern = Column(String)
     severity = Column(String)
     is_active = Column(Boolean, default=True)
     data_source = Column(String, default="both")
-    data_field = Column(String, nullable=True)
-    match_type = Column(String, default="regex")
+    conditions = Column(JSON) # Store conditions as a JSON structure
