@@ -16,3 +16,9 @@ class Rule(BaseModel):
     pattern: str  # The pattern or signature to look for
     severity: str
     is_active: bool = True
+
+class SystemStatus(BaseModel):
+    overall_status: str
+    data_ingestion: str
+    detection_engine: str
+    alert_storage: str

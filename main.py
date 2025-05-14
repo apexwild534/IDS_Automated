@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from typing import List
 from datetime import datetime
-from models import Alert, Rule
+from models import Alert, Rule, SystemStatus
 
 app = FastAPI()
 
@@ -60,6 +60,19 @@ async def delete_rule(rule_id: int):
             del rules_db[index]
             return {"detail": f"Rule with ID {rule_id} deleted"}
     raise HTTPException(status_code=404, detail=f"Rule with ID {rule_id} not found")
+
+@app.get("/status", response_model=SystemStatus)
+async def get_status():
+    """Retrieves the current status of the SentinelAI system."""
+    # In a real application, you would check the status of each component
+    status_data = SystemStatus(
+        overall_status="OK",
+        data_ingestion="Running",
+        detection_engine="Active",
+        alert_storage="Connected"
+    )
+    return status_data
+
 
 @app.get("/")
 async def root():
