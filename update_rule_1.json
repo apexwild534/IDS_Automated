@@ -1,0 +1,9 @@
+{
+  "id": 1,
+  "name": "Updated Test Rule",
+  "pattern": "updated_pattern",
+  "severity": "High",
+  "is_active": false,
+  "data_source": "network",
+  "match_type": "regex"
+}

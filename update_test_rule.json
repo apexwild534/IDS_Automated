@@ -1,0 +1,8 @@
+{
+    "name": "Test Rule",
+    "pattern": "test_pattern",
+    "severity": "High",
+    "is_active": false,
+    "data_source": "both",
+    "match_type": "substring"
+}

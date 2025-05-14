@@ -1,0 +1,9 @@
+{
+    "id": 3,
+    "name": "Rule to Delete",
+    "pattern": "delete_me",
+    "severity": "Low",
+    "is_active": true,
+    "data_source": "logs",
+    "match_type": "exact"
+}

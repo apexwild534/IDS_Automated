@@ -10,6 +10,9 @@ class Alert(BaseModel):
     destination_ip: str | None = None
     description: str
 
+    class Config:
+        from_attributes = True
+
 class Rule(BaseModel):
     id: int | None = None
     name: str
@@ -19,7 +22,10 @@ class Rule(BaseModel):
     is_active: bool = True
     data_source: Literal["network", "logs", "both"] = "both"
     data_field: Optional[str] = None
-    match_type: Literal["exact", "substring", "regex"] = "regex" # Added match_type field
+    match_type: Literal["exact", "substring", "regex"] = "regex"
+
+    class Config:
+        from_attributes = True
 
 class SystemStatus(BaseModel):
     overall_status: str
