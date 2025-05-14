@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional
 
 class Alert(BaseModel):
-    id: int
+    id: int | None = None
     timestamp: datetime
     severity: str
     source_ip: str | None = None
@@ -34,6 +34,7 @@ class NetworkPacketData(BaseModel):
     length: int
     flags: Optional[str] = None  # E.g., SYN, ACK, FIN
     checksum: Optional[str] = None
+    data: Optional[str] = None # Added data field to match your curl request
 
 class SystemLogData(BaseModel):
     timestamp: datetime
