@@ -1,0 +1,7 @@
+{
+    "name": "Specific Network Rule",
+    "pattern": "GET /admin",
+    "severity": "High",
+    "is_active": true,
+    "data_source": "network"
+}

@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Literal
 
 class Alert(BaseModel):
     id: int | None = None
@@ -17,6 +17,7 @@ class Rule(BaseModel):
     pattern: str  # The pattern or signature to look for
     severity: str
     is_active: bool = True
+    data_source: Literal["network", "logs", "both"] = "both" # Added data_source field
 
 class SystemStatus(BaseModel):
     overall_status: str

@@ -15,9 +15,9 @@ rules_db = [
 
 def process_network_data(packet: NetworkPacketData):
     combined_string = f"{packet.source_ip} {packet.destination_ip} {packet.protocol} {packet.source_port} {packet.destination_port} {packet.flags} {packet.length} {packet.checksum} {packet.timestamp} {getattr(packet, 'data', '')}"
-    print(f"String being checked: {combined_string}")
+    print(f"Network string being checked: {combined_string}")
     for rule in rules_db:
-        if rule.is_active and re.search(rule.pattern, combined_string, re.IGNORECASE):
+        if rule.is_active and (rule.data_source == "network" or rule.data_source == "both") and re.search(rule.pattern, combined_string, re.IGNORECASE):
             alert = Alert(
                 id=len(alerts_db) + 1,
                 timestamp=packet.timestamp,
@@ -27,14 +27,14 @@ def process_network_data(packet: NetworkPacketData):
                 description=f"Network traffic matched rule: {rule.name} (Pattern: {rule.pattern})"
             )
             alerts_db.append(alert)
-            print(f"Alert generated: {alert}")
+            print(f"Alert generated from network: {alert}")
             return
 
 def process_system_log(log: SystemLogData):
     combined_log_string = f"{log.timestamp} {log.hostname} {log.log_level} {log.source} {log.message}"
     print(f"Log string being checked: {combined_log_string}")
     for rule in rules_db:
-        if rule.is_active and re.search(rule.pattern, combined_log_string, re.IGNORECASE):
+        if rule.is_active and (rule.data_source == "logs" or rule.data_source == "both") and re.search(rule.pattern, combined_log_string, re.IGNORECASE):
             alert = Alert(
                 id=len(alerts_db) + 1,
                 timestamp=log.timestamp,
@@ -45,8 +45,7 @@ def process_system_log(log: SystemLogData):
             )
             alerts_db.append(alert)
             print(f"Alert generated from log: {alert}")
-            return # For now, trigger one alert per log match
-
+            return
 
 @app.post("/network_data")
 async def receive_network_data(packet_data: NetworkPacketData):
