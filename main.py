@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Dict
 from datetime import datetime, timedelta
 from models import Alert, Rule, SystemStatus, NetworkPacketData, SystemLogData, Condition, SequenceCondition, CoincidenceCondition
@@ -14,6 +15,23 @@ import numpy as np
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
+
+origins = [
+    "http://localhost:3000",  # The origin of your React development server
+    "http://localhost",
+    "http://127.0.0.1",
+    "http://127.0.0.1:3000",
+    "*",  # Be very cautious with this in production; it allows all origins
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 rule_event_timestamps: Dict[int, List[datetime]] = defaultdict(list)
 active_sequences: Dict[tuple[int, str], tuple[int, datetime]] = {}

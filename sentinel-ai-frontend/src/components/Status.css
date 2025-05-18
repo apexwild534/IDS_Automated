@@ -1,0 +1,38 @@
+/* src/components/Status.css */
+.status-container {
+    width: 80%;
+    max-width: 960px;
+    padding: 20px;
+    background-color: #112240;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    color: #f5f5f5;
+    margin-bottom: 20px;
+}
+
+.status-title {
+    color: #64ffda;
+    font-size: 1.8em;
+    margin-bottom: 20px;
+    text-align: left;
+}
+
+.status-details {
+    display: grid;
+    grid-template-columns: auto 1fr; /* Label takes auto width, value takes the rest */
+    gap: 10px 20px;
+}
+
+.status-item {
+    display: contents; /* Allows label and value to be styled as direct children of the grid */
+}
+
+.status-label {
+    font-weight: bold;
+    color: #a8b2d1;
+    text-align: right;
+}
+
+.status-value {
+    color: #ccd6f6;
+}
