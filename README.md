@@ -57,10 +57,10 @@ IDS_Automated/
 	     |
 	     |---index.js
 	     |
-         |---index.css
-         |
-         |---hooks
-         |    |
+             |---index.css
+             |
+             |---hooks
+             |    |
 	     |    |---useApi.js
 	     |
 	     |---components
